@@ -39,7 +39,7 @@ import org.eclipse.californium.scandium.config.DtlsConnectorConfig;
 import org.eclipse.californium.scandium.dtls.DtlsTestTools;
 import org.eclipse.californium.scandium.dtls.InMemoryConnectionStore;
 import org.eclipse.californium.scandium.dtls.cipher.CipherSuite;
-import org.eclipse.californium.scandium.dtls.pskstore.PskStore;
+import org.eclipse.californium.scandium.dtls.pskstore.BytesPskStore;
 import org.eclipse.californium.scandium.dtls.pskstore.StaticPskStore;
 import org.eclipse.californium.scandium.rule.DtlsNetworkRule;
 import org.junit.After;
@@ -102,7 +102,7 @@ public class DTLSConnectorHandshakeTest {
 		serverHelper.startServer(builder);
 	}
 
-	private void startClientPsk(boolean enableSni, String hostname, Integer cidLength, PskStore pskStore) throws Exception {
+	private void startClientPsk(boolean enableSni, String hostname, Integer cidLength, BytesPskStore pskStore) throws Exception {
 		DtlsConnectorConfig.Builder builder = new DtlsConnectorConfig.Builder()
 				.setPskStore(pskStore)
 				.setConnectionIdLength(cidLength);

@@ -49,6 +49,8 @@ import org.eclipse.californium.elements.util.SslContextUtil;
 import org.eclipse.californium.scandium.dtls.CertificateType;
 import org.eclipse.californium.scandium.dtls.SessionCache;
 import org.eclipse.californium.scandium.dtls.cipher.CipherSuite;
+import org.eclipse.californium.scandium.dtls.pskstore.BytesPskStore;
+import org.eclipse.californium.scandium.dtls.pskstore.MappedBytesPskStore;
 import org.eclipse.californium.scandium.dtls.pskstore.PskStore;
 import org.eclipse.californium.scandium.dtls.rpkstore.TrustAllRpks;
 import org.eclipse.californium.scandium.dtls.rpkstore.TrustedRpkStore;
@@ -183,6 +185,9 @@ public final class DtlsConnectorConfig {
 
 	/** store of the PSK */
 	private PskStore pskStore;
+
+	/** store of the byte oriented PSK */
+	private BytesPskStore bytesPskStore;
 
 	/** the private key for RPK and X509 mode, right now only EC type is supported */
 	private PrivateKey privateKey;
@@ -475,13 +480,31 @@ public final class DtlsConnectorConfig {
 	}
 
 	/**
-	 * Gets the registry of <em>shared secrets</em> used for authenticating
-	 * clients during a DTLS handshake.
+	 * Gets the registry of <em>shared secrets</em> based on UTF-8 strings used
+	 * for authenticating clients during a DTLS handshake.
+	 * 
+	 * This store is used indirectly by a {@link MappedBytesPskStore}. Non UTF-8
+	 * identities will fail to look up the secret key.
+	 * 
+	 * Note: using a {@ink PskStore} is supported for backwards compatibility.
+	 * Consider to use the new API {@link BytesPskStore}.
 	 * 
 	 * @return the registry
+	 * @see #getBytesPskStore()
 	 */
 	public PskStore getPskStore() {
 		return pskStore;
+	}
+
+	/**
+	 * Gets the registry of <em>shared secrets</em> based on bytes used for
+	 * authenticating clients during a DTLS handshake.
+	 * 
+	 * @return the registry
+	 * @see #getPskStore()
+	 */
+	public BytesPskStore getBytesPskStore() {
+		return bytesPskStore;
 	}
 
 	/**
@@ -697,6 +720,7 @@ public final class DtlsConnectorConfig {
 		cloned.identityCertificateTypes = identityCertificateTypes;
 		cloned.trustCertificateTypes = trustCertificateTypes;
 		cloned.pskStore = pskStore;
+		cloned.bytesPskStore = bytesPskStore;
 		cloned.privateKey = privateKey;
 		cloned.publicKey = publicKey;
 		cloned.certChain = certChain;
@@ -750,7 +774,7 @@ public final class DtlsConnectorConfig {
 		 * <li><em>trustStore</em>: empty array</li>
 		 * </ul>
 		 * 
-		 * Note that when keeping the default values, at least one of the {@link #setPskStore(PskStore)}
+		 * Note that when keeping the default values, at least one of the {@link #setPskStore(BytesPskStore)}
 		 * or {@link #setIdentity(PrivateKey, PublicKey)} methods need to be used to 
 		 * get a working configuration for a <code>DTLSConnector</code> that can be used
 		 * as a client and server.
@@ -1129,8 +1153,8 @@ public final class DtlsConnectorConfig {
 		}
 
 		/**
-		 * Sets the key store to use for authenticating clients based on a
-		 * pre-shared key.
+		 * Sets the key store to use for authenticating clients based on UTF-8
+		 * identities for pre-shared key.
 		 * 
 		 * If used together with {@link #setIdentity(PrivateKey, PublicKey)} or
 		 * {@link #setIdentity(PrivateKey, Certificate[], CertificateType...)}
@@ -1138,11 +1162,45 @@ public final class DtlsConnectorConfig {
 		 * change that, use {@link #setSupportedCipherSuites(CipherSuite...)} or
 		 * {@link #setSupportedCipherSuites(String...)}.
 		 * 
-		 * @param pskStore the key store
+		 * This store is used indirectly by an automatically created
+		 * {@link MappedBytesPskStore}.
+		 * 
+		 * Note: using a {@ink PskStore} is supported for backwards compatibility.
+		 * Consider to use the new API {@link BytesPskStore}.
+		 * 
+		 * @param pskStore the UTF-8 key store
 		 * @return this builder for command chaining
+		 * @throws IllegalArgumentException if the store is already set with
+		 *             {@link #setPskStore(BytesPskStore)}
 		 */
 		public Builder setPskStore(PskStore pskStore) {
+			if (config.bytesPskStore != null && pskStore != null) {
+				throw new IllegalArgumentException("Byte-based PSK store already provided!");
+			}
 			config.pskStore = pskStore;
+			return this;
+		}
+
+		/**
+		 * Sets the key store to use for authenticating clients based on the raw
+		 * bytes identities for pre-shared key.
+		 * 
+		 * If used together with {@link #setIdentity(PrivateKey, PublicKey)} or
+		 * {@link #setIdentity(PrivateKey, Certificate[], CertificateType...)}
+		 * the default preference uses the certificate based cipher suites. To
+		 * change that, use {@link #setSupportedCipherSuites(CipherSuite...)} or
+		 * {@link #setSupportedCipherSuites(String...)}.
+		 * 
+		 * @param pskStore the byte oriented key store
+		 * @return this builder for command chaining
+		 * @throws IllegalArgumentException if the store is already set with
+		 *             {@link #setPskStore(PskStore)}
+		 */
+		public Builder setPskStore(BytesPskStore bytesPskStore) {
+			if (config.pskStore != null && bytesPskStore != null) {
+				throw new IllegalArgumentException("UTF-8-based PSK store already provided!");
+			}
+			config.bytesPskStore = bytesPskStore;
 			return this;
 		}
 
@@ -1164,7 +1222,7 @@ public final class DtlsConnectorConfig {
 		 * instead and provide RAW_PUBLIC_KEY together with X_509 in the wanted
 		 * preference order.
 		 *
-		 * If used together with {@link #setPskStore(PskStore)}, the default
+		 * If used together with {@link #setPskStore(BytesPskStore)}, the default
 		 * preference uses this certificate based cipher suites. To change that,
 		 * use {@link #setSupportedCipherSuites(CipherSuite...)} or
 		 * {@link #setSupportedCipherSuites(String...)}.
@@ -1206,7 +1264,7 @@ public final class DtlsConnectorConfig {
 		 * {@link #setRpkTrustStore(TrustedRpkStore)}, if you want to trust the
 		 * other peer also using certificates.
 		 * 
-		 * If used together with {@link #setPskStore(PskStore)}, the default
+		 * If used together with {@link #setPskStore(BytesPskStore)}, the default
 		 * preference uses this certificate based cipher suites. To change that,
 		 * use {@link #setSupportedCipherSuites(CipherSuite...)} or
 		 * {@link #setSupportedCipherSuites(String...)}.
@@ -1252,7 +1310,7 @@ public final class DtlsConnectorConfig {
 		 * {@link #setRpkTrustStore(TrustedRpkStore)}, if you want to trust the
 		 * other peer also using certificates.
 		 * 
-		 * If used together with {@link #setPskStore(PskStore)}, the default
+		 * If used together with {@link #setPskStore(BytesPskStore)}, the default
 		 * preference uses this certificate based cipher suites. To change that,
 		 * use {@link #setSupportedCipherSuites(CipherSuite...)} or
 		 * {@link #setSupportedCipherSuites(String...)}.
@@ -1714,6 +1772,9 @@ public final class DtlsConnectorConfig {
 			if (config.clientAuthenticationWanted == null) {
 				config.clientAuthenticationWanted = false;
 			}
+			if (config.bytesPskStore == null && config.pskStore != null) {
+				config.bytesPskStore = new MappedBytesPskStore(config.pskStore);
+			}
 			if (config.clientAuthenticationRequired == null) {
 				if (clientOnly) {
 					config.clientAuthenticationRequired = false;
@@ -1814,7 +1875,7 @@ public final class DtlsConnectorConfig {
 				}
 			}
 
-			if (!psk && config.pskStore != null) {
+			if (!psk && config.bytesPskStore != null) {
 				throw new IllegalStateException("PSK store set, but no PSK cipher suite!");
 			}
 
@@ -1836,7 +1897,7 @@ public final class DtlsConnectorConfig {
 		}
 
 		private void verifyPskBasedCipherConfig(CipherSuite suite) {
-			if (config.pskStore == null) {
+			if (config.bytesPskStore == null) {
 				throw new IllegalStateException("PSK store must be set for configured " + suite.name());
 			}
 		}
@@ -1884,7 +1945,7 @@ public final class DtlsConnectorConfig {
 				ciphers.addAll(CipherSuite.getEcdsaCipherSuites(extendedCipherSuites));
 			}
 
-			if (config.pskStore != null) {
+			if (config.bytesPskStore != null) {
 				ciphers.addAll(CipherSuite.getPskCipherSuites(extendedCipherSuites, true));
 			}
 

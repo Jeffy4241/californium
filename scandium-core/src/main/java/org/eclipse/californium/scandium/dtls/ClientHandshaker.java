@@ -65,7 +65,7 @@ import org.eclipse.californium.scandium.dtls.AlertMessage.AlertLevel;
 import org.eclipse.californium.scandium.dtls.CertificateType;
 import org.eclipse.californium.scandium.dtls.cipher.CipherSuite;
 import org.eclipse.californium.scandium.dtls.cipher.ECDHECryptography;
-import org.eclipse.californium.scandium.dtls.pskstore.PskStore;
+import org.eclipse.californium.scandium.dtls.pskstore.BytesPskStore;
 import org.eclipse.californium.scandium.util.ByteArrayUtils;
 import org.eclipse.californium.scandium.util.PskUtil;
 import org.eclipse.californium.scandium.util.ServerNames;
@@ -133,7 +133,7 @@ public class ClientHandshaker extends Handshaker {
 	protected byte[] handshakeHash = null;
 
 	/** Used to retrieve identity/pre-shared-key for a given destination */
-	protected final PskStore pskStore;
+	protected final BytesPskStore pskStore;
 	protected ServerNames indicatedServerNames;
 	protected SignatureAndHashAlgorithm negotiatedSignatureAndHashAlgorithm;
 
@@ -163,7 +163,7 @@ public class ClientHandshaker extends Handshaker {
 		this.privateKey = config.getPrivateKey();
 		this.certificateChain = config.getCertificateChain();
 		this.publicKey = config.getPublicKey();
-		this.pskStore = config.getPskStore();
+		this.pskStore = config.getBytesPskStore();
 		this.preferredCipherSuites = config.getSupportedCipherSuites();
 		this.maxFragmentLengthCode = config.getMaxFragmentLengthCode();
 		this.sniEnabled = config.isSniEnabled();
@@ -502,17 +502,17 @@ public class ClientHandshaker extends Handshaker {
 			break;
 		case PSK:
 			PskUtil pskUtilPlain = new PskUtil(sniEnabled, session, pskStore);
-			LOGGER.debug("Using PSK identity: {}", pskUtilPlain.getPskIdentity());
-			session.setPeerIdentity(pskUtilPlain.getPskIdentity());
-			clientKeyExchange = new PSKClientKeyExchange(pskUtilPlain.getPskIdentity().getIdentity(), session.getPeer());
+			LOGGER.debug("Using PSK identity: {}", pskUtilPlain.getPskPrincipal());
+			session.setPeerIdentity(pskUtilPlain.getPskPrincipal());
+			clientKeyExchange = new PSKClientKeyExchange(pskUtilPlain.getPskPublicIdentity(), session.getPeer());
 			premasterSecret = generatePremasterSecretFromPSK(pskUtilPlain.getPreSharedKey(), null);
 			generateKeys(premasterSecret);
 			break;
 		case ECDHE_PSK:
 			PskUtil pskUtil = new PskUtil(sniEnabled, session, pskStore);
-			LOGGER.debug("Using PSK identity: {}", pskUtil.getPskIdentity());
-			session.setPeerIdentity(pskUtil.getPskIdentity());
-			clientKeyExchange = new EcdhPskClientKeyExchange(pskUtil.getPskIdentity().getIdentity(), ecdhe.getPublicKey(), session.getPeer());
+			LOGGER.debug("Using PSK identity: {}", pskUtil.getPskPrincipal());
+			session.setPeerIdentity(pskUtil.getPskPrincipal());
+			clientKeyExchange = new EcdhPskClientKeyExchange(pskUtil.getPskPublicIdentity(), ecdhe.getPublicKey(), session.getPeer());
 			byte[] otherSecret = ecdhe.getSecret(ephemeralServerPublicKey).getEncoded();
 			premasterSecret = generatePremasterSecretFromPSK(pskUtil.getPreSharedKey(), otherSecret);
 			generateKeys(premasterSecret);
